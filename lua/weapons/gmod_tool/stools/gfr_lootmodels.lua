@@ -28,6 +28,13 @@ end
 
 local function LM() return GFR && GFR.LootModels end
 
+-- The gamemode's side of this (sh_containers.lua / sh_lootmodels.lua), new enough for this tool. An older copy of the
+-- gamemode loaded instead (one left in garrysmod/gamemodes/greenflu wins over the addon's) doesn't have it.
+local function GamemodeReady()
+	return GFR && GFR.ContainerTypes && GFR.ContainerType && GFR.ContainerListEntry && GFR.LootModels && true or false
+end
+local NOT_READY = "Needs the Green Flu: Reimagined gamemode, up to date. (An old copy in garrysmod/gamemodes/greenflu would be loaded instead of this one.)"
+
 local function Tell(ply, msg)
 	if IsValid(ply) then ply:ChatPrint("[Lootbox Models] " .. msg) end
 end
@@ -50,7 +57,7 @@ end
 
 local function Ready(tool)
 	local ply = tool:GetOwner()
-	if !LM() or !GFR.ContainerTypes then Tell(ply, "Only works in the Green Flu: Reimagined gamemode.") return false end
+	if !GamemodeReady() then Tell(ply, NOT_READY) return false end
 	if !LM().CanEdit(ply) then Tell(ply, "Admins only.") return false end
 	return true
 end
@@ -100,7 +107,7 @@ function TOOL:Reload(tr)
 	if !ent then return false end
 	if CLIENT then return true end
 	local ply = self:GetOwner()
-	if !LM() or !GFR.ContainerTypes then Tell(ply, "Only works in the Green Flu: Reimagined gamemode.") return false end
+	if !GamemodeReady() then Tell(ply, NOT_READY) return false end
 	local t = GFR.ContainerType(ent)
 	local e = GFR.ContainerListEntry(mdl, ent:GetSkin())
 	local forced = ent:GetNW2String("GFR_CType", "")
@@ -128,7 +135,7 @@ surface.CreateFont("GFR_LM_Label", {font = "Roboto", size = 34, weight = 800, ex
 local near, nextScan = {}, 0
 
 hook.Add("PostDrawTranslucentRenderables", "GFR_LM_Labels", function(depth, sky)
-	if sky or !Holding() or !GFR or !GFR.ContainerType then return end
+	if sky or !Holding() or !GamemodeReady() then return end
 	local eye = EyePos()
 	if CurTime() > nextScan then
 		nextScan = CurTime() + 0.5
@@ -163,8 +170,8 @@ end
 
 function TOOL.BuildCPanel(panel)
 	panel:Help("#tool.gfr_lootmodels.desc")
-	if !GFR or !GFR.LootModels or !GFR.ContainerTypes then
-		panel:Help("Only works in the Green Flu: Reimagined gamemode.")
+	if !GamemodeReady() then
+		panel:Help(NOT_READY)
 		return
 	end
 	local LMod = GFR.LootModels
