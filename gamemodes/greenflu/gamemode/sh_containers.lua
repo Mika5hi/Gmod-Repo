@@ -76,7 +76,9 @@ GFR.ContainerTypes = {
 }
 
 ---------------------------------------------------------------------------------------------------------------------------------------------
--- CONTAINER MODELS - edit this list to choose which models are which container and what the map loot spawns.
+-- CONTAINER MODELS - the old built-in list. This version starts with NO containers: every lootbox model is assigned
+-- in-game with the Lootbox Models tool (sh_lootmodels.lua, saved to data/greenflu/containers.json). The list below is
+-- only loaded when you press "Load the old built-in list" in that tool, as a starting point.
 --   [1]     model path
 --   type    which container it is = which loot it holds (the types above: medbag, fridge, crate, guncrate, attcrate, ammo...)
 --   skin    optional: only this skin of the model counts (one model, different crates: Crunchy's crate_ammo.mdl)
@@ -176,10 +178,14 @@ GFR.ContainerClasses = {
 	supply_unit_ammo = "cargo_ammo", supply_unit_meds = "cargo_meds", supply_unit_rations = "cargo_rations"
 }
 
--- The list above is the built-in one. The Lootbox Models tool saves an edited list (sh_lootmodels.lua,
--- data/greenflu/containers.json) that replaces it; "Restore defaults" there brings this one back.
-GFR.DefaultContainerModels = table.Copy(GFR.ContainerModels)
-if GFR.ContainerModelsSaved then GFR.ContainerModels = GFR.ContainerModelsSaved end -- (Lua refresh: keep the edited list)
+-- The list in use is the one made with the Lootbox Models tool (sh_lootmodels.lua loads it); nothing until then
+GFR.BuiltinContainerModels = GFR.ContainerModels
+GFR.ContainerModels = GFR.ContainerModelsSaved or {} -- (Lua refresh: keep the edited list)
+
+-- Props that aren't on the list can also count by their model name ("crate", "fridge", "locker"... below). Off: only
+-- what you assigned is a container.
+local cvNameMatch = CreateConVar("gfr_container_namematch", "0", bit.bor(FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY),
+	"Props not on the Lootbox Models list are containers if their model name looks like one (crate, fridge, locker...)")
 
 local byModel = {} -- [model] = {[skin or -1] = type, or false: listed as "none", never a container}
 local opensTo = {} -- [model] = opened model
@@ -263,6 +269,7 @@ function GFR.ContainerType(ent)
 		if t == nil then t = listed[-1] end
 		if t != nil then return t or nil end -- (false: listed as not a container, whatever its name says)
 	end
+	if !cvNameMatch:GetBool() then return end
 	local cached = cache[mdl]
 	if cached == nil && string.find(mdl, "models/crunchy/", 1, true) then
 		local ok = false

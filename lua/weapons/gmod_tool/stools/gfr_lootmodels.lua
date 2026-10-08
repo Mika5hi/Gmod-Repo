@@ -6,6 +6,8 @@
 		right click  take that prop's model off the list (and if its name would still make it a container, it's
 		             listed as "Not a container" so it really stops being one)
 		reload       what that prop is right now, and why
+	The list starts empty: nothing is a container until you assign it (gfr_container_namematch 1: props also count by
+	their model name, as before).
 	Inside / Outside: how often map loot spawns that model in buildings / out in the open (0 = never; it's still
 	searchable where the map or a loot point puts it). Changes are saved for every map straight away.
 	Only in Green Flu: Reimagined. Admins and up (single-player: anyone).
@@ -251,10 +253,18 @@ function TOOL.BuildCPanel(panel)
 		entry:SetValue("")
 	end
 
-	local reset = panel:Button("Restore the built-in list")
-	reset.DoClick = function()
-		Derma_Query("Throw away every change made with this tool and go back to the gamemode's own list?", "Restore the built-in list",
-			"Restore", function() LMod.Request("reset") end, "Cancel")
+	panel:CheckBox("Props not on the list count by their model name (crate, fridge, locker...)", "gfr_container_namematch")
+	panel:Help("Off: only the models you assign are containers.")
+
+	local clear = panel:Button("Clear all (no containers)")
+	clear.DoClick = function()
+		Derma_Query("Take every model off the list? Nothing will be a container until you assign models again.", "Clear all",
+			"Clear", function() LMod.Request("clear") end, "Cancel")
+	end
+	local builtin = panel:Button("Load the old built-in list")
+	builtin.DoClick = function()
+		Derma_Query("Replace the list with the gamemode's old built-in one (about 70 models), as a starting point?", "Load the old built-in list",
+			"Load", function() LMod.Request("builtin") end, "Cancel")
 	end
 	panel:Help("Changes are saved for every map (data/greenflu/containers.json). Gold labels: on the list. Grey: a container only because of its model name - click it to put it on the list.")
 

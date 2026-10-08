@@ -1,8 +1,9 @@
 --[[
 	Custom Apocalypse - the container model list, edited in-game (the Lootbox Models tool:
 	addon lua/weapons/gmod_tool/stools/gfr_lootmodels.lua)
-	The built-in list is GFR.ContainerModels in sh_containers.lua. Once anything is changed with the tool, the whole
-	list is saved to data/greenflu/containers.json (every map) and used instead; "Restore defaults" deletes the file.
+	It starts empty: no model is a container until you assign it. The list is saved to data/greenflu/containers.json
+	(every map). "Clear all" empties it again; "Load the old built-in list" (sh_containers.lua) gives a starting point.
+	gfr_container_namematch 1: props not on the list also count by their model name, as the old version did.
 	Each entry: model, skin (or any), type (sh_containers.lua GFR.ContainerTypes, or "none": never a container, even if
 	its name looks like one), indoor / outdoor (how often map loot spawns it; 0 = never, still searchable where it is).
 	Admins and up (sv_admin.lua staff level 2), superadmins, or anyone in single-player.
@@ -55,7 +56,7 @@ end
 
 local function Apply(list)
 	GFR.ContainerModelsSaved = list
-	GFR.ContainerModels = list or table.Copy(GFR.DefaultContainerModels or GFR.ContainerModels)
+	GFR.ContainerModels = list or {}
 	if GFR.RebuildContainerIndex then GFR.RebuildContainerIndex() end
 	if CLIENT then hook.Run("GFR_LootModelsChanged") end
 end
@@ -142,10 +143,17 @@ if SERVER then
 		return n
 	end
 
-	function LM.Reset()
+	-- Empty: nothing is a container
+	function LM.Clear()
 		if file.Exists(FILE, "DATA") then file.Delete(FILE) end
 		Apply(nil)
 		Sync()
+	end
+
+	-- The old built-in list (sh_containers.lua) as a starting point, replacing what's there
+	function LM.LoadBuiltin()
+		GFR.ContainerModels = table.Copy(GFR.BuiltinContainerModels or {})
+		Save()
 	end
 
 	-- From the tool's panel: set / remove / reset
@@ -164,9 +172,12 @@ if SERVER then
 		elseif action == "remove" then
 			local n = LM.Remove(mdl, skin)
 			ply:ChatPrint("[Lootbox Models] " .. (n > 0 and ("Removed " .. mdl .. " from the list.") or "That model isn't on the list."))
-		elseif action == "reset" then
-			LM.Reset()
-			ply:ChatPrint("[Lootbox Models] Back to the built-in list.")
+		elseif action == "clear" then
+			LM.Clear()
+			ply:ChatPrint("[Lootbox Models] List cleared: no model is a container now.")
+		elseif action == "builtin" then
+			LM.LoadBuiltin()
+			ply:ChatPrint("[Lootbox Models] Loaded the old built-in list (" .. #GFR.ContainerModels .. " models).")
 		end
 	end)
 else
