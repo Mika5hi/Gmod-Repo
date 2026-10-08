@@ -176,13 +176,37 @@ GFR.ContainerClasses = {
 	supply_unit_ammo = "cargo_ammo", supply_unit_meds = "cargo_meds", supply_unit_rations = "cargo_rations"
 }
 
-local byModel = {} -- [model] = {[skin or -1] = type}
+-- The list above is the built-in one. The Lootbox Models tool saves an edited list (sh_lootmodels.lua,
+-- data/greenflu/containers.json) that replaces it; "Restore defaults" there brings this one back.
+GFR.DefaultContainerModels = table.Copy(GFR.ContainerModels)
+if GFR.ContainerModelsSaved then GFR.ContainerModels = GFR.ContainerModelsSaved end -- (Lua refresh: keep the edited list)
+
+local byModel = {} -- [model] = {[skin or -1] = type, or false: listed as "none", never a container}
 local opensTo = {} -- [model] = opened model
-for _, e in ipairs(GFR.ContainerModels) do
-	local mdl = string.lower(e[1])
-	byModel[mdl] = byModel[mdl] or {}
-	byModel[mdl][e.skin or -1] = e.type
-	if e.opens then opensTo[mdl] = e.opens end
+local cache = {}
+
+function GFR.RebuildContainerIndex()
+	byModel, opensTo, cache = {}, {}, {}
+	for _, e in ipairs(GFR.ContainerModels) do
+		local mdl = string.lower(e[1])
+		byModel[mdl] = byModel[mdl] or {}
+		byModel[mdl][e.skin or -1] = e.type != "none" && e.type or false
+		if e.opens then opensTo[mdl] = e.opens end
+	end
+end
+GFR.RebuildContainerIndex()
+
+-- The list entry for this model / skin (exact skin first, then the any-skin one), or nil
+function GFR.ContainerListEntry(mdl, skin)
+	mdl = string.lower(mdl or "")
+	local any
+	for _, e in ipairs(GFR.ContainerModels) do
+		if string.lower(e[1]) == mdl then
+			if e.skin && e.skin == skin then return e end
+			if !e.skin then any = e end
+		end
+	end
+	return any
 end
 
 -- The opened model of a container that opens up when searched (Supply Units), or nil
@@ -223,8 +247,6 @@ local propClasses = {
 	prop_dynamic = true, prop_dynamic_override = true
 }
 
-local cache = {}
-
 -- Returns the container type id for an entity, or nil
 function GFR.ContainerType(ent)
 	if !IsValid(ent) or ent:GetNW2Bool("GFR_Placed") then return end
@@ -237,8 +259,9 @@ function GFR.ContainerType(ent)
 	if mdl == "" then return end
 	local listed = byModel[mdl]
 	if listed then
-		local t = listed[ent:GetSkin()] or listed[-1]
-		if t then return t end
+		local t = listed[ent:GetSkin()]
+		if t == nil then t = listed[-1] end
+		if t != nil then return t or nil end -- (false: listed as not a container, whatever its name says)
 	end
 	local cached = cache[mdl]
 	if cached == nil && string.find(mdl, "models/crunchy/", 1, true) then

@@ -506,15 +506,27 @@ local function StashModelOf(e)
 	return FALLBACK_BOX, nil
 end
 
-local function PickStashModel(indoor)
+-- onlyType: just models of that type (a loot point set to one type). Weighted by indoor / outdoor as usual; when none of
+-- that type are set to turn up here, any of its models will do, and with no models at all it's the wooden crate.
+local function PickStashModel(indoor, onlyType)
 	local key = indoor and "indoor" or "outdoor"
 	local list, total = {}, 0
+	local ofType = {}
 	for _, e in ipairs(GFR.ContainerModels) do
-		local w = e[key] or 0
-		if w > 0 then
-			list[#list + 1] = e
-			total = total + w
+		if e.type != "none" && (!onlyType or e.type == onlyType) then
+			ofType[#ofType + 1] = e
+			local w = e[key] or 0
+			if w > 0 then
+				list[#list + 1] = e
+				total = total + w
+			end
 		end
+	end
+	if onlyType && total <= 0 then
+		if #ofType == 0 then return FALLBACK_BOX, onlyType, nil end
+		local e = ofType[math.random(#ofType)]
+		local mdl, skin = StashModelOf(e)
+		return mdl, e.type, skin
 	end
 	local roll = math.Rand(0, total)
 	for _, e in ipairs(list) do
@@ -524,6 +536,18 @@ local function PickStashModel(indoor)
 			return mdl, e.type, skin
 		end
 	end
+end
+
+-- What a placed loot point spawns: its own model if it has one, else a model of its type, else anything
+-- (the Spawn Points tool: GFR_SP points carry ctype / model / skin)
+local function PickPointModel(p, indoor)
+	if p.model && p.model != "" then
+		local listed = GFR.ContainerListEntry && GFR.ContainerListEntry(p.model, p.skin)
+		local ctype = p.ctype or (listed && listed.type != "none" && listed.type) or nil
+		if !util.IsValidModel(p.model) then return FALLBACK_BOX, ctype or "crate", nil end
+		return p.model, ctype, p.skin
+	end
+	return PickStashModel(indoor, p.ctype)
 end
 
 local function SpawnStashProp(pos, mdl, ctype, skin)
@@ -557,12 +581,21 @@ local function CreateStash(minDist)
 	-- About half the time, one of the loot points placed with the Spawn Points tool first (lua/autorun/gfr_spawnpoints.lua);
 	-- indoors or out, a placed point is always good. With gfr_spawnpoints_only (and loot points on this map), only those.
 	local only = GFR_SP && GFR_SP.Only && GFR_SP.Only("loot")
-	local placed = GFR_SP && (only or math.Rand(0, 1) < 0.5) && GFR_SP.Get("loot")
+	local placed
+	if GFR_SP && (only or math.Rand(0, 1) < 0.5) then
+		if GFR_SP.GetPoints then
+			placed = GFR_SP.GetPoints("loot")
+		else
+			placed = {}
+			for _, pos in ipairs(GFR_SP.Get("loot")) do placed[#placed + 1] = {pos = pos} end -- (an older Spawn Points addon)
+		end
+	end
 	if placed && #placed > 0 then
 		for _ = 1, math.min(#placed, only and 20 or 8) do
-			local pos, indoor = GroundSpot(placed[math.random(#placed)])
+			local point = placed[math.random(#placed)]
+			local pos, indoor = GroundSpot(point.pos)
 			if pos && !TooClose(pos, minDist) then
-				local mdl, ctype, skin = PickStashModel(indoor)
+				local mdl, ctype, skin = PickPointModel(point, indoor)
 				local ent = mdl && SpawnStashProp(pos, mdl, ctype, skin)
 				if IsValid(ent) then
 					stashes[#stashes + 1] = {pos = pos, ent = ent}
@@ -658,7 +691,7 @@ end
 local function StashTypes()
 	local have = {}
 	for _, e in ipairs(GFR.ContainerModels or {}) do
-		if e.type then have[e.type] = true end
+		if e.type && e.type != "none" then have[e.type] = true end
 	end
 	return have
 end
@@ -668,7 +701,7 @@ concommand.Add("gfr_spawn_stash", function(ply, _, args)
 	local want = args[1] && string.lower(args[1]) or nil
 	local list = {}
 	for _, e in ipairs(GFR.ContainerModels or {}) do
-		if e.type && (!want or e.type == want) then list[#list + 1] = e end
+		if e.type && e.type != "none" && (!want or e.type == want) then list[#list + 1] = e end
 	end
 	if #list == 0 then
 		local names = table.GetKeys(StashTypes())

@@ -2,7 +2,7 @@
 	Custom Apocalypse - placed spawn points (any gamemode, so maps can be set up in Sandbox)
 	Placed with the Spawn Points toolgun (weapons/gmod_tool/stools/gfr_spawnpoints.lua), saved per map in
 	data/greenflu/spawns_<map>.txt. The gamemode uses them on top of its own random spots (sv_spawner.lua, sv_loot.lua):
-		loot      a searchable stash turns up here
+		loot      a searchable stash turns up here: any kind, or one container type (ctype), or one model (model / skin)
 		zombie    the infected
 		survivor / bandit / military   a group of that faction
 	Markers show only while you hold the tool.
@@ -18,7 +18,25 @@ GFR_SP.Kinds = {
 GFR_SP.KindById = {}
 for _, k in ipairs(GFR_SP.Kinds) do GFR_SP.KindById[k.id] = k end
 
-GFR_SP.Points = GFR_SP.Points or {} -- {kind = id, pos = Vector}
+GFR_SP.Points = GFR_SP.Points or {} -- {kind = id, pos = Vector, ctype = loot type or nil, model = path or nil, skin = n or nil}
+
+-- Saved as {kind, x, y, z} or, for a loot point with a type / model, {kind, x, y, z, ctype, model, skin} ("" / -1 = any)
+local function Pack(p)
+	local t = {p.kind, math.Round(p.pos.x), math.Round(p.pos.y), math.Round(p.pos.z)}
+	if p.ctype or p.model then
+		t[5], t[6], t[7] = p.ctype or "", p.model or "", p.skin or -1
+	end
+	return t
+end
+
+local function Unpack(t)
+	local p = {kind = t[1], pos = Vector(t[2], t[3], t[4])}
+	if isstring(t[5]) && t[5] != "" then p.ctype = t[5] end
+	if isstring(t[6]) && t[6] != "" then p.model = t[6] end
+	local skin = tonumber(t[7])
+	if p.model && skin && skin >= 0 then p.skin = skin end
+	return p
+end
 
 -- Server owners: a map set up with points can use ONLY them. Per kind: with gfr_spawnpoints_only 1, a kind this map has
 -- points for (loot / zombies / groups) never turns up at random spots; kinds with no points stay random.
@@ -33,7 +51,7 @@ if SERVER then
 
 	local function Sync(ply)
 		local out = {}
-		for _, p in ipairs(GFR_SP.Points) do out[#out + 1] = {p.kind, math.Round(p.pos.x), math.Round(p.pos.y), math.Round(p.pos.z)} end
+		for _, p in ipairs(GFR_SP.Points) do out[#out + 1] = Pack(p) end
 		local data = util.Compress(util.TableToJSON(out))
 		net.Start("GFR_SP_Sync")
 		net.WriteUInt(#data, 32)
@@ -47,14 +65,14 @@ if SERVER then
 		local raw = file.Read(Path(), "DATA")
 		local list = raw && util.JSONToTable(raw)
 		for _, p in ipairs(list or {}) do
-			if GFR_SP.KindById[p[1]] then GFR_SP.Points[#GFR_SP.Points + 1] = {kind = p[1], pos = Vector(p[2], p[3], p[4])} end
+			if GFR_SP.KindById[p[1]] then GFR_SP.Points[#GFR_SP.Points + 1] = Unpack(p) end
 		end
 		Sync()
 	end
 
 	local function Save()
 		local out = {}
-		for _, p in ipairs(GFR_SP.Points) do out[#out + 1] = {p.kind, math.Round(p.pos.x), math.Round(p.pos.y), math.Round(p.pos.z)} end
+		for _, p in ipairs(GFR_SP.Points) do out[#out + 1] = Pack(p) end
 		file.CreateDir("greenflu")
 		file.Write(Path(), util.TableToJSON(out))
 		Sync()
@@ -70,6 +88,16 @@ if SERVER then
 		return out
 	end
 
+	-- Every placed point of a kind, whole: {pos, ctype, model, skin} (loot points that want one type / model)
+	function GFR_SP.GetPoints(kind)
+		if !loaded then GFR_SP.Load() end
+		local out = {}
+		for _, p in ipairs(GFR_SP.Points) do
+			if p.kind == kind then out[#out + 1] = p end
+		end
+		return out
+	end
+
 	-- Only placed points for any of these kinds? (gfr_spawnpoints_only, and the map has at least one of them)
 	function GFR_SP.Only(kinds)
 		if !cvOnly:GetBool() then return false end
@@ -80,10 +108,13 @@ if SERVER then
 		return false
 	end
 
-	function GFR_SP.Add(kind, pos)
+	-- extra (loot only): {ctype = type, model = path, skin = n}
+	function GFR_SP.Add(kind, pos, extra)
 		if !loaded then GFR_SP.Load() end
 		if !GFR_SP.KindById[kind] then return false end
-		GFR_SP.Points[#GFR_SP.Points + 1] = {kind = kind, pos = pos}
+		local p = {kind = kind, pos = pos}
+		if kind == "loot" && extra then p.ctype, p.model, p.skin = extra.ctype, extra.model, extra.model && extra.skin or nil end
+		GFR_SP.Points[#GFR_SP.Points + 1] = p
 		Save()
 		return true
 	end
@@ -121,7 +152,7 @@ else
 		local len = net.ReadUInt(32)
 		local list = util.JSONToTable(util.Decompress(net.ReadData(len)) or "") or {}
 		GFR_SP.Points = {}
-		for _, p in ipairs(list) do GFR_SP.Points[#GFR_SP.Points + 1] = {kind = p[1], pos = Vector(p[2], p[3], p[4])} end
+		for _, p in ipairs(list) do GFR_SP.Points[#GFR_SP.Points + 1] = Unpack(p) end
 	end)
 
 	local function HoldingTool()
@@ -131,6 +162,16 @@ else
 	end
 
 	surface.CreateFont("GFR_SP_Label", {font = "Roboto", size = 40, weight = 800, extended = true})
+	surface.CreateFont("GFR_SP_Small", {font = "Roboto", size = 28, weight = 700, extended = true})
+
+	-- What a loot point spawns, for its label: "ANY TYPE", the type's name, or the type and the model's file name
+	local function LootLabel(p)
+		if !p.ctype && !p.model then return "ANY TYPE" end
+		local def = p.ctype && GFR && GFR.ContainerTypes && GFR.ContainerTypes[p.ctype]
+		local name = def && def.name or p.ctype or "?"
+		if p.model then name = name .. "  ·  " .. string.GetFileFromFilename(p.model) .. (p.skin and (" (skin " .. p.skin .. ")") or "") end
+		return string.upper(name)
+	end
 
 	-- Markers: a box the size of what spawns there (smaller for loot), a label above, while you hold the tool
 	hook.Add("PostDrawTranslucentRenderables", "GFR_SP_Markers", function(depth, sky)
@@ -148,7 +189,10 @@ else
 				local ang = (eye - top):Angle()
 				ang = Angle(0, ang.y + 90, 90)
 				cam.Start3D2D(top, ang, 0.15)
-					draw.SimpleTextOutlined(string.upper(k.name), "GFR_SP_Label", 0, 0, k.color, TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 2, Color(0, 0, 0, 220))
+					draw.SimpleTextOutlined(string.upper(k.name), "GFR_SP_Label", 0, loot and -34 or 0, k.color, TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 2, Color(0, 0, 0, 220))
+					if loot then
+						draw.SimpleTextOutlined(LootLabel(p), "GFR_SP_Small", 0, 0, (p.ctype or p.model) and color_white or Color(190, 190, 190), TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 2, Color(0, 0, 0, 220))
+					end
 				cam.End3D2D()
 			end
 		end
