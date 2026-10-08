@@ -1,0 +1,8 @@
+"greenflu"
+{
+	"base"			"sandbox"
+	"title"			"Green Flu: Reimagined"
+	"maps"			""
+	"menusystem"	"1"
+	"settings"		{}
+}
