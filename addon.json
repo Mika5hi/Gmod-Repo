@@ -2,5 +2,5 @@
 	"title": "Green Flu: Reimagined (Dev)",
 	"type": "gamemode",
 	"tags": ["fun", "realism"],
-	"ignore": [".git/*", ".gitignore", ".gitattributes", "*.md"]
+	"ignore": [".git/*", ".gitignore", ".gitattributes", "*.md", "*.bat"]
 }
