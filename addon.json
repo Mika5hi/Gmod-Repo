@@ -1,0 +1,6 @@
+{
+	"title": "Green Flu: Reimagined",
+	"type": "gamemode",
+	"tags": ["fun", "realism"],
+	"ignore": [".git/*", ".gitignore", ".gitattributes", "*.md"]
+}
