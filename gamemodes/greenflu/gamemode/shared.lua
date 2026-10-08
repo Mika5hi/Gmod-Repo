@@ -17,7 +17,7 @@
 ]]
 DeriveGamemode("sandbox")
 
-GM.Name = "Green Flu: Reimagined"
+GM.Name = "Green Flu: Reimagined (Dev)"
 GM.Author = "Green Flu: Reimagined"
 GM.Email = ""
 GM.Website = ""
