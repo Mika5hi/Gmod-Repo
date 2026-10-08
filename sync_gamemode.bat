@@ -1,6 +1,6 @@
 @echo off
 setlocal
-rem Green Flu: Reimagined (Dev) - copy the gamemode from this repo into garrysmod\gamemodes\greenflu
+rem (DEV) Green Flu: Reimagined - copy the gamemode from this repo into garrysmod\gamemodes\greenflu
 rem Garry's Mod only finds gamemodes in garrysmod\gamemodes (not in a loose addons folder, not through a link), so
 rem after every pull, run this. It expects the repo to be garrysmod\addons\greenflu.
 

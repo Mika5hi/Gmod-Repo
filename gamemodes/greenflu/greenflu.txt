@@ -1,7 +1,7 @@
 "greenflu"
 {
 	"base"			"sandbox"
-	"title"			"Green Flu: Reimagined (Dev)"
+	"title"			"(DEV) Green Flu: Reimagined"
 	"maps"			""
 	"menusystem"	"1"
 	"settings"		{}
